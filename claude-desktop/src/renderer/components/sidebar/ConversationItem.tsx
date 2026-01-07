@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Conversation } from '../../lib/types'
+import { getModelShortName } from '../../lib/constants'
 
 interface ConversationItemProps {
   conversation: Conversation
@@ -92,9 +93,16 @@ export function ConversationItem({
           className="flex-1 bg-white dark:bg-gray-800 border border-claude-orange rounded px-1 py-0.5 text-sm"
         />
       ) : (
-        <span className="flex-1 truncate text-sm text-gray-700 dark:text-gray-200">
-          {conversation.title}
-        </span>
+        <div className="flex-1 min-w-0">
+          <span className="block truncate text-sm text-gray-700 dark:text-gray-200">
+            {conversation.title}
+          </span>
+          {conversation.model && (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              {getModelShortName(conversation.model)}
+            </span>
+          )}
+        </div>
       )}
 
       {/* Menu button */}

@@ -5,6 +5,7 @@ import { SettingsModal } from './components/settings/SettingsModal'
 import { useConversations } from './hooks/useConversations'
 import { useSettings } from './hooks/useSettings'
 import { api } from './lib/api'
+import { getModelShortName } from './lib/constants'
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -63,9 +64,11 @@ export default function App() {
   }, [settings.theme])
 
   const handleNewChat = useCallback(async () => {
-    const conversation = await createConversation('New Chat')
+    const model = settings.model || 'sonnet'
+    const modelName = getModelShortName(model)
+    const conversation = await createConversation(`New Chat`, model)
     setCurrentConversation(conversation)
-  }, [createConversation, setCurrentConversation])
+  }, [createConversation, setCurrentConversation, settings.model])
 
   const handleSelectConversation = useCallback(
     (id: string) => {

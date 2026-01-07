@@ -5,6 +5,7 @@ import { useChat } from '../../hooks/useChat'
 import { MessageList } from './MessageList'
 import { InputArea } from './InputArea'
 import { EmptyState } from './EmptyState'
+import { getModelShortName } from '../../lib/constants'
 
 interface ChatViewProps {
   conversation: Conversation | null
@@ -53,9 +54,11 @@ export function ChatView({ conversation, onConversationUpdate, model }: ChatView
           <h1 className="font-medium text-gray-800 dark:text-gray-100 truncate max-w-md">
             {conversation.title}
           </h1>
-          <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
-            {conversation.model}
-          </span>
+          {(conversation.model || model) && (
+            <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+              {getModelShortName(conversation.model || model)}
+            </span>
+          )}
         </div>
       </div>
 

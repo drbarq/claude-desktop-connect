@@ -29,6 +29,24 @@ export const MODELS = [
   }
 ]
 
+// Helper to get model display name from ID
+export function getModelName(modelId: string): string {
+  const model = MODELS.find((m) => m.id === modelId)
+  return model?.name || modelId
+}
+
+// Helper to get short model name for display
+export function getModelShortName(modelId: string): string {
+  const names: Record<string, string> = {
+    'opus-4.5': 'Opus 4.5',
+    opus: 'Opus 4',
+    sonnet: 'Sonnet 4',
+    haiku: 'Haiku 4.5',
+    'sonnet-3.5': 'Sonnet 3.5'
+  }
+  return names[modelId] || modelId
+}
+
 export const AWS_REGIONS = [
   { id: 'us-east-1', name: 'US East (N. Virginia)' },
   { id: 'us-east-2', name: 'US East (Ohio)' },
