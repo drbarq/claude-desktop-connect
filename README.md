@@ -110,10 +110,43 @@ aws bedrock list-foundation-models --query "modelSummaries[?contains(modelId, 'c
 
 ## Usage
 
-### Chat UI (Claude Desktop Replacement)
+### Quick Start (with run.sh)
+
+The easiest way to launch - handles SSO login automatically:
 
 ```bash
+# With a profile name
+./run.sh your-profile
+
+# Or set it in environment
+AWS_PROFILE=your-profile ./run.sh
+
+# Examples:
+./run.sh dev-account
+./run.sh prod-readonly
+AWS_PROFILE=my-sso-profile ./run.sh
+```
+
+The script will:
+1. Check if your credentials are valid
+2. Prompt for SSO login if expired
+3. Launch the chat UI
+
+### Manual Launch
+
+```bash
+# Step 1: Login (if using SSO)
+aws sso login --profile your-profile
+
+# Step 2: Set environment
+export AWS_PROFILE=your-profile
+export AWS_REGION=us-east-1
+
+# Step 3: Run
 streamlit run bedrock_chat.py
+
+# Or as a one-liner:
+AWS_PROFILE=your-profile AWS_REGION=us-east-1 streamlit run bedrock_chat.py
 ```
 
 Open http://localhost:8501 in your browser.
@@ -172,6 +205,7 @@ claude  # Claude Code works!
 
 | File | Description |
 |------|-------------|
+| `run.sh` | Quick start script (handles SSO login) |
 | `bedrock_chat.py` | Streamlit chat UI (main app) |
 | `chat_storage.py` | SQLite conversation storage |
 | `system_prompt.py` | Official Claude system prompts |
