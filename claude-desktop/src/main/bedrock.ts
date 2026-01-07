@@ -2,12 +2,14 @@ import {
   BedrockRuntimeClient,
   ConverseStreamCommand,
   type Message as BedrockMessage,
-  type ContentBlock
+  type ContentBlock,
+  type ToolConfiguration
 } from '@aws-sdk/client-bedrock-runtime'
 import { fromIni } from '@aws-sdk/credential-providers'
 import { BrowserWindow } from 'electron'
 import { getSetting } from './database'
 import { TOOL_CONFIG, executeTool } from './tools'
+import { mcpManager } from './mcp'
 import { homedir } from 'os'
 
 // Model ID mapping
@@ -53,9 +55,39 @@ function getCurrentDate(): string {
   })
 }
 
+// Get combined tool configuration (built-in + MCP tools)
+function getCombinedToolConfig(): ToolConfiguration {
+  const mcpTools = mcpManager.getBedrockToolDefinitions()
+
+  if (mcpTools.length === 0) {
+    return TOOL_CONFIG
+  }
+
+  // Combine built-in tools with MCP tools
+  return {
+    tools: [...(TOOL_CONFIG.tools || []), ...mcpTools]
+  }
+}
+
 // Full system prompt with tool instructions
 function getSystemPrompt(workingDir: string): string {
   const currentDate = getCurrentDate()
+  const mcpTools = mcpManager.getAllTools()
+
+  // Build MCP tools section if any are connected
+  let mcpToolsSection = ''
+  if (mcpTools.length > 0) {
+    const mcpToolsList = mcpTools
+      .map(({ serverName, tool }) => `- **mcp_${serverName}_${tool.name}** - [MCP: ${serverName}] ${tool.description || tool.name}`)
+      .join('\n')
+
+    mcpToolsSection = `
+
+<mcp_tools>
+The following MCP (Model Context Protocol) tools are available from external servers:
+${mcpToolsList}
+</mcp_tools>`
+  }
 
   return `You are Claude, an AI assistant created by Anthropic. You are running in a desktop application that gives you access to the user's computer through various tools.
 
@@ -63,7 +95,7 @@ Current date: ${currentDate}
 Working directory: ${workingDir}
 
 <tools_available>
-You have access to the following tools to help the user:
+You have access to the following built-in tools to help the user:
 
 1. **Read** - Read file contents. Returns content with line numbers.
 2. **Write** - Write content to a file. Creates new or overwrites existing.
@@ -72,7 +104,7 @@ You have access to the following tools to help the user:
 5. **Glob** - Find files matching a pattern (e.g., "**/*.ts")
 6. **Grep** - Search file contents using regex patterns.
 7. **LS** - List directory contents.
-</tools_available>
+</tools_available>${mcpToolsSection}
 
 <tool_usage_guidelines>
 - Use tools proactively to help the user accomplish their goals
@@ -134,7 +166,7 @@ export async function streamChat(
         modelId,
         messages: conversationMessages,
         system: [{ text: getSystemPrompt(cwd) }],
-        toolConfig: TOOL_CONFIG,
+        toolConfig: getCombinedToolConfig(),
         inferenceConfig: {
           maxTokens: 8192,
           temperature: 0.7
@@ -240,7 +272,16 @@ export async function streamChat(
                   input: toolUse.input
                 })
 
-                const result = await executeTool(toolUse.name, toolUse.input, cwd)
+                // Route MCP tools through mcpManager, others through built-in executeTool
+                let result: { success: boolean; result: string; error?: string }
+
+                if (mcpManager.isMCPTool(toolUse.name)) {
+                  // MCP tool - route through mcpManager
+                  result = await mcpManager.callTool(toolUse.name, toolUse.input)
+                } else {
+                  // Built-in tool
+                  result = await executeTool(toolUse.name, toolUse.input, cwd)
+                }
 
                 window.webContents.send('stream:toolUse', {
                   conversationId,

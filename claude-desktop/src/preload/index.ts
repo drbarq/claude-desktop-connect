@@ -30,6 +30,15 @@ export interface ElectronAPI {
   listAwsProfiles: () => Promise<string[]>
   testAwsConnection: (profile: string, region: string) => Promise<boolean>
 
+  // MCP
+  mcpGetStatus: () => Promise<Array<{ name: string; connected: boolean; toolCount: number }>>
+  mcpGetConfig: () => Promise<{ mcpServers: Record<string, { command: string; args?: string[]; env?: Record<string, string> }> }>
+  mcpSaveConfig: (config: { mcpServers: Record<string, { command: string; args?: string[]; env?: Record<string, string> }> }) => Promise<boolean>
+  mcpReconnect: () => Promise<Array<{ name: string; connected: boolean; toolCount: number }>>
+  mcpGetConfigPath: () => Promise<string>
+  mcpOpenConfigFile: () => Promise<boolean>
+  mcpGetTools: () => Promise<Array<{ serverName: string; tool: { name: string; description?: string } }>>
+
   // Event listeners
   onStreamToken: (callback: (data: { conversationId: string; token: string }) => void) => () => void
   onStreamDone: (callback: (data: { conversationId: string }) => void) => () => void
@@ -66,6 +75,15 @@ const electronAPI: ElectronAPI = {
   // AWS
   listAwsProfiles: () => ipcRenderer.invoke('aws:listProfiles'),
   testAwsConnection: (profile, region) => ipcRenderer.invoke('aws:testConnection', profile, region),
+
+  // MCP
+  mcpGetStatus: () => ipcRenderer.invoke('mcp:getStatus'),
+  mcpGetConfig: () => ipcRenderer.invoke('mcp:getConfig'),
+  mcpSaveConfig: (config) => ipcRenderer.invoke('mcp:saveConfig', config),
+  mcpReconnect: () => ipcRenderer.invoke('mcp:reconnect'),
+  mcpGetConfigPath: () => ipcRenderer.invoke('mcp:getConfigPath'),
+  mcpOpenConfigFile: () => ipcRenderer.invoke('mcp:openConfigFile'),
+  mcpGetTools: () => ipcRenderer.invoke('mcp:getTools'),
 
   // Event listeners
   onStreamToken: (callback) => {

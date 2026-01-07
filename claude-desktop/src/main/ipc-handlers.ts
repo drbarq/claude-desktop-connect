@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, shell } from 'electron'
 import {
   listConversations,
   getConversation,
@@ -14,6 +14,7 @@ import {
 } from './database'
 import { streamChat, listAwsProfiles, testAwsConnection, ChatMessage } from './bedrock'
 import { getMainWindow } from './index'
+import { mcpManager, MCPConfig } from './mcp'
 
 export function registerIpcHandlers(): void {
   // Conversation handlers
@@ -86,5 +87,39 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('aws:testConnection', async (_, profile: string, region: string) => {
     return testAwsConnection(profile, region)
+  })
+
+  // MCP handlers
+  ipcMain.handle('mcp:getStatus', () => {
+    return mcpManager.getStatus()
+  })
+
+  ipcMain.handle('mcp:getConfig', async () => {
+    return mcpManager.loadConfig()
+  })
+
+  ipcMain.handle('mcp:saveConfig', async (_, config: MCPConfig) => {
+    await mcpManager.saveConfig(config)
+    return true
+  })
+
+  ipcMain.handle('mcp:reconnect', async () => {
+    await mcpManager.disconnectAll()
+    await mcpManager.connectAll()
+    return mcpManager.getStatus()
+  })
+
+  ipcMain.handle('mcp:getConfigPath', () => {
+    return mcpManager.getConfigPath()
+  })
+
+  ipcMain.handle('mcp:openConfigFile', async () => {
+    const configPath = mcpManager.getConfigPath()
+    shell.showItemInFolder(configPath)
+    return true
+  })
+
+  ipcMain.handle('mcp:getTools', () => {
+    return mcpManager.getAllTools()
   })
 }

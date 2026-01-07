@@ -5,6 +5,7 @@ import { initDatabase, getDatabase } from './database'
 import { registerIpcHandlers } from './ipc-handlers'
 import { createTray } from './tray'
 import { createMenu } from './menu'
+import { mcpManager } from './mcp'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -64,6 +65,13 @@ app.whenReady().then(() => {
   // Register IPC handlers
   registerIpcHandlers()
 
+  // Initialize MCP servers (async, don't block startup)
+  mcpManager.connectAll().then(() => {
+    console.log('MCP servers initialized:', mcpManager.getConnectedServers())
+  }).catch((err) => {
+    console.error('Failed to initialize MCP servers:', err)
+  })
+
   // Create the main window
   createWindow()
 
@@ -84,6 +92,11 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// Clean up MCP connections on quit
+app.on('before-quit', async () => {
+  await mcpManager.disconnectAll()
 })
 
 // Handle dark mode changes

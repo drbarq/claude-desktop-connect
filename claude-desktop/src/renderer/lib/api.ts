@@ -25,6 +25,15 @@ interface ElectronAPI {
   listAwsProfiles: () => Promise<string[]>
   testAwsConnection: (profile: string, region: string) => Promise<boolean>
 
+  // MCP
+  mcpGetStatus: () => Promise<Array<{ name: string; connected: boolean; toolCount: number }>>
+  mcpGetConfig: () => Promise<{ mcpServers: Record<string, { command: string; args?: string[]; env?: Record<string, string> }> }>
+  mcpSaveConfig: (config: { mcpServers: Record<string, { command: string; args?: string[]; env?: Record<string, string> }> }) => Promise<boolean>
+  mcpReconnect: () => Promise<Array<{ name: string; connected: boolean; toolCount: number }>>
+  mcpGetConfigPath: () => Promise<string>
+  mcpOpenConfigFile: () => Promise<boolean>
+  mcpGetTools: () => Promise<Array<{ serverName: string; tool: { name: string; description?: string } }>>
+
   // Event listeners
   onStreamToken: (callback: (data: { conversationId: string; token: string }) => void) => () => void
   onStreamDone: (callback: (data: { conversationId: string }) => void) => () => void
@@ -67,6 +76,15 @@ export const api: ElectronAPI = {
   // AWS
   listAwsProfiles: () => window.electron.listAwsProfiles(),
   testAwsConnection: (profile, region) => window.electron.testAwsConnection(profile, region),
+
+  // MCP
+  mcpGetStatus: () => window.electron.mcpGetStatus(),
+  mcpGetConfig: () => window.electron.mcpGetConfig(),
+  mcpSaveConfig: (config) => window.electron.mcpSaveConfig(config),
+  mcpReconnect: () => window.electron.mcpReconnect(),
+  mcpGetConfigPath: () => window.electron.mcpGetConfigPath(),
+  mcpOpenConfigFile: () => window.electron.mcpOpenConfigFile(),
+  mcpGetTools: () => window.electron.mcpGetTools(),
 
   // Event listeners
   onStreamToken: (callback) => window.electron.onStreamToken(callback),
