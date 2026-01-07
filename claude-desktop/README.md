@@ -8,7 +8,9 @@ A native desktop application for chatting with Claude using AWS Bedrock. Built w
 - **Local Storage** - All conversations stored locally in SQLite
 - **AWS Bedrock Integration** - Uses your AWS account for Claude API access
 - **Streaming Responses** - Real-time token streaming
-- **Multiple Models** - Switch between Opus, Sonnet, and Haiku
+- **Multiple Models** - Switch between Opus 4.5, Opus 4, Sonnet 4, Haiku 4.5, and Sonnet 3.5
+- **Built-in Tools** - File operations (Read, Write, Edit), Bash commands, Glob, Grep, LS
+- **MCP Support** - Connect external tool servers via Model Context Protocol
 - **Dark Mode** - Automatic or manual theme switching
 - **Markdown Support** - Full markdown rendering with syntax-highlighted code blocks
 - **Keyboard Shortcuts** - Cmd/Ctrl+N for new chat, Cmd/Ctrl+, for settings
@@ -77,6 +79,8 @@ claude-desktop/
 │   │   ├── index.ts    # App entry point
 │   │   ├── bedrock.ts  # AWS Bedrock integration
 │   │   ├── database.ts # SQLite operations
+│   │   ├── tools.ts    # Built-in tool definitions & executors
+│   │   ├── mcp.ts      # MCP client manager
 │   │   └── ...
 │   ├── preload/        # Context bridge
 │   │   └── index.ts
@@ -91,10 +95,41 @@ claude-desktop/
 
 ## Data Storage
 
-Conversations are stored in SQLite at:
+All data is stored locally and created automatically on first run.
+
+**SQLite Database** (conversations):
 - **macOS**: `~/Library/Application Support/claude-desktop/data/claude.db`
 - **Windows**: `%APPDATA%/claude-desktop/data/claude.db`
 - **Linux**: `~/.config/claude-desktop/data/claude.db`
+
+**MCP Config** (external tool servers):
+- **macOS**: `~/Library/Application Support/claude-desktop/mcp_config.json`
+- **Windows**: `%APPDATA%/claude-desktop/mcp_config.json`
+- **Linux**: `~/.config/claude-desktop/mcp_config.json`
+
+### MCP Configuration
+
+To add MCP servers, edit the `mcp_config.json` file (same format as Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/directory"]
+    },
+    "another-server": {
+      "command": "node",
+      "args": ["/path/to/server.js"],
+      "env": {
+        "API_KEY": "your-key"
+      }
+    }
+  }
+}
+```
+
+MCP servers are connected on app startup. Their tools become available to Claude alongside the built-in tools.
 
 ## Keyboard Shortcuts
 
@@ -114,6 +149,7 @@ Conversations are stored in SQLite at:
 - **Tailwind CSS** - Styling
 - **better-sqlite3** - Local database
 - **AWS SDK** - Bedrock integration
+- **MCP SDK** - Model Context Protocol client
 
 ## License
 
