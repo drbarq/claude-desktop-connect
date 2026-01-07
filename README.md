@@ -1,183 +1,118 @@
 # Bedrock Anthropic Proxy
 
-Use **Claude Desktop** (or any Anthropic client) with **AWS Bedrock**. Run Opus on your own AWS account!
+Use **AWS Bedrock** with any Anthropic-compatible client, or run the included **Claude Desktop replacement** with local chat storage!
 
-## The Problem
+## What We Discovered
 
-Claude Desktop is hardcoded to `api.anthropic.com`. There's no config to change it. But Bedrock already speaks Anthropic's message format - it just uses different endpoints with AWS auth.
+After extracting and analyzing the official Claude Desktop app, we found:
 
-## The Solution
+- **Claude Desktop is a WebView wrapper** - it loads `claude.ai` in a browser view
+- **API calls come from the web app**, not the Electron app itself
+- **Chats are stored on Anthropic's servers**, synced to your account
+- **System prompts are injected server-side**
 
-Three approaches to redirect Claude Desktop → Bedrock:
+This means patching the Electron app won't redirect API calls. Instead, we built a **complete local replacement**.
+
+## Architecture
 
 ```
-┌──────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Claude Desktop  │────▶│  Bedrock Proxy  │────▶│   AWS Bedrock   │
-│  (patched/proxy) │     │  (localhost)    │     │  (Claude Opus)  │
-└──────────────────┘     └─────────────────┘     └─────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Your Options                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Option A: Full Replacement (Recommended)                           │
+│  ┌──────────────────┐     ┌─────────────────┐                       │
+│  │  Streamlit Chat  │────▶│   AWS Bedrock   │                       │
+│  │  (local storage) │     │  (Claude Opus)  │                       │
+│  └──────────────────┘     └─────────────────┘                       │
+│  - Local SQLite database for all chats                              │
+│  - Official Claude system prompt included                           │
+│  - No Anthropic account needed                                      │
+│                                                                      │
+│  Option B: API Proxy                                                │
+│  ┌──────────────────┐     ┌─────────────────┐     ┌──────────────┐ │
+│  │  Any Anthropic   │────▶│  Bedrock Proxy  │────▶│  AWS Bedrock │ │
+│  │  Client (SDK)    │     │  (localhost)    │     │              │ │
+│  └──────────────────┘     └─────────────────┘     └──────────────┘ │
+│  - Claude Code, Python SDK, curl, etc.                              │
+│  - Drop-in replacement for api.anthropic.com                        │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
-
-### Approach 1: Patch the Electron App (Recommended)
-Permanently modify Claude Desktop to hit your local proxy instead of api.anthropic.com.
-
-### Approach 2: Traffic Interception with mitmproxy
-Intercept HTTPS traffic without modifying the app.
-
-### Approach 3: Use Alternative Chat UIs
-Skip Claude Desktop entirely - use Open WebUI, the included Streamlit chat, etc.
 
 ---
 
-## Quick Start (Approach 1 - Patch)
+## Option A: Claude Desktop Replacement (Recommended)
 
-### Step 1: Install dependencies
+A full-featured chat interface that replicates Claude Desktop functionality with local storage.
+
+### Features
+
+- **Local SQLite storage** - All conversations stored in `~/.config/claude-bedrock/chats.db`
+- **Official Claude system prompt** - Authentic Claude behavior (from Anthropic's public docs)
+- **Conversation history** - Sidebar with all your chats
+- **Export/Import** - Backup and restore conversations as JSON
+- **Multiple models** - Switch between Opus, Sonnet, Haiku
+- **Streaming responses** - Real-time token streaming
+- **No Anthropic account** - Everything runs on your AWS account
+
+### Quick Start
 
 ```bash
+# 1. Install dependencies
 pip install -r requirements.txt
-npm install -g @electron/asar  # For patching the Electron app
-```
 
-### Step 2: Configure AWS credentials
-
-```bash
-# Option A: Environment variables
-export AWS_ACCESS_KEY_ID=your-key
-export AWS_SECRET_ACCESS_KEY=your-secret
+# 2. Configure AWS credentials
+export AWS_PROFILE=your-profile  # or use environment variables
 export AWS_REGION=us-east-1
 
-# Option B: AWS SSO (recommended)
-aws sso login --profile your-profile
-export AWS_PROFILE=your-profile
-export AWS_REGION=us-east-1
-```
-
-### Step 3: Patch Claude Desktop
-
-```bash
-# Close Claude Desktop first!
-python patch_claude_desktop.py
-
-# This will:
-# - Backup the original app
-# - Replace api.anthropic.com with localhost:8080
-# - Disable auto-updates (so the patch persists)
-```
-
-### Step 4: Run the proxy and launch Claude Desktop
-
-```bash
-# Terminal 1: Run the Bedrock proxy
-python bedrock_proxy.py
-
-# Terminal 2: Launch Claude Desktop normally
-# It now talks to your proxy!
-```
-
-### Restore Original
-
-```bash
-python patch_claude_desktop.py --restore
-```
-
----
-
-## Approach 2: Traffic Interception (No App Modification)
-
-If you don't want to modify Claude Desktop, intercept its traffic instead:
-
-### Step 1: Install mitmproxy
-
-```bash
-pip install mitmproxy
-```
-
-### Step 2: Install mitmproxy's CA certificate
-
-```bash
-# First, run mitmproxy once to generate certs
-mitmproxy  # Then press 'q' to quit
-
-# macOS
-sudo security add-trusted-cert -d -r trustRoot \
-    -k /Library/Keychains/System.keychain \
-    ~/.mitmproxy/mitmproxy-ca-cert.pem
-
-# Windows (as Administrator)
-certutil -addstore root %USERPROFILE%\.mitmproxy\mitmproxy-ca-cert.cer
-
-# Linux
-sudo cp ~/.mitmproxy/mitmproxy-ca-cert.pem \
-    /usr/local/share/ca-certificates/mitmproxy.crt
-sudo update-ca-certificates
-```
-
-### Step 3: Run the interceptor and proxy
-
-```bash
-# Terminal 1: Bedrock proxy
-python bedrock_proxy.py
-
-# Terminal 2: Traffic interceptor
-python intercept_claude.py
-
-# Terminal 3: Launch Claude Desktop with proxy
-HTTPS_PROXY=http://localhost:8888 /Applications/Claude.app/Contents/MacOS/Claude
-```
-
----
-
-## Approach 3: Alternative Chat UI
-
-Don't want to mess with Claude Desktop? Use the included Streamlit chat:
-
-```bash
+# 3. Run the chat
 streamlit run bedrock_chat.py
 ```
 
-Or connect Open WebUI to the Bedrock proxy (see main README section below).
+Open `http://localhost:8501` and start chatting!
+
+### Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `AWS_REGION` | `us-east-1` | AWS region for Bedrock |
+| `AWS_PROFILE` | (none) | AWS profile to use |
+| `USE_SYSTEM_PROMPT` | `true` | Inject official Claude system prompt |
+
+### Data Storage
+
+All data is stored locally:
+- **Database**: `~/.config/claude-bedrock/chats.db`
+- **Format**: SQLite with conversations and messages tables
 
 ---
 
-## Direct Proxy Usage
+## Option B: API Proxy
 
-### 1. Install dependencies
+A drop-in replacement for `api.anthropic.com` that routes requests to Bedrock.
+
+### Quick Start
 
 ```bash
+# 1. Install dependencies
 pip install -r requirements.txt
-```
 
-### 2. Configure AWS credentials
-
-```bash
-# Option A: Environment variables
-export AWS_ACCESS_KEY_ID=your-key
-export AWS_SECRET_ACCESS_KEY=your-secret
-export AWS_REGION=us-east-1
-
-# Option B: AWS SSO (recommended)
-aws sso login --profile your-profile
+# 2. Configure AWS credentials
 export AWS_PROFILE=your-profile
 export AWS_REGION=us-east-1
-```
 
-### 3. Run the proxy
-
-```bash
+# 3. Run the proxy
 python bedrock_proxy.py
-```
 
-### 4. Point your client at it
-
-```bash
+# 4. Point your client at it
 export ANTHROPIC_BASE_URL=http://localhost:8080
 export ANTHROPIC_API_KEY=dummy  # Required by some clients but not used
-
-# Now use any Anthropic-compatible tool!
 ```
 
-## Usage Examples
+### Usage Examples
 
-### With the Anthropic Python SDK
+#### With the Anthropic Python SDK
 
 ```python
 from anthropic import Anthropic
@@ -195,7 +130,7 @@ response = client.messages.create(
 print(response.content[0].text)
 ```
 
-### With Claude Code
+#### With Claude Code
 
 ```bash
 # Terminal 1: Run the Bedrock proxy
@@ -207,7 +142,7 @@ export ANTHROPIC_API_KEY=dummy
 claude
 ```
 
-### With curl
+#### With curl
 
 ```bash
 curl -X POST http://localhost:8080/v1/messages \
@@ -219,7 +154,7 @@ curl -X POST http://localhost:8080/v1/messages \
   }'
 ```
 
-## Model Mapping
+### Model Mapping
 
 The proxy automatically maps friendly model names to Bedrock inference profile IDs:
 
@@ -231,22 +166,7 @@ The proxy automatically maps friendly model names to Bedrock inference profile I
 | `claude-opus-4-20250514` | `us.anthropic.claude-opus-4-20250514-v1:0` |
 | `claude-sonnet-4-5-20250929` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
 
-You can also use Bedrock IDs directly:
-```bash
-curl -X POST http://localhost:8080/v1/messages \
-  -d '{"model": "us.anthropic.claude-opus-4-20250514-v1:0", ...}'
-```
-
-## Configuration
-
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `AWS_REGION` | `us-east-1` | AWS region for Bedrock |
-| `BEDROCK_MODEL` | `us.anthropic.claude-opus-4-20250514-v1:0` | Default model |
-| `PROXY_PORT` | `8080` | Port to run the proxy on |
-| `LOG_LEVEL` | `INFO` | Logging level |
-
-## Features
+### Proxy Features
 
 - Full Anthropic Messages API compatibility
 - Streaming responses (SSE)
@@ -255,7 +175,38 @@ curl -X POST http://localhost:8080/v1/messages \
 - Automatic model mapping
 - AWS credential chain support (env vars, profiles, SSO, IAM roles)
 - Health check endpoint
-- Detailed logging
+
+---
+
+## Alternative Approaches (For Reference)
+
+### Traffic Interception with mitmproxy
+
+You can intercept Claude Desktop's HTTPS traffic, but since it loads a web app, this would intercept traffic to `claude.ai` rather than direct API calls.
+
+```bash
+# Install mitmproxy CA cert first
+python intercept_claude.py
+```
+
+### Electron App Patching
+
+The `patch_claude_desktop.py` script can modify the Electron app, but this won't redirect API calls since Claude Desktop is a WebView to `claude.ai`.
+
+---
+
+## Project Files
+
+| File | Description |
+|------|-------------|
+| `bedrock_chat.py` | Full Claude Desktop replacement with local storage |
+| `chat_storage.py` | SQLite storage for conversations |
+| `system_prompt.py` | Official Claude system prompts |
+| `bedrock_proxy.py` | API proxy (Anthropic → Bedrock) |
+| `intercept_claude.py` | mitmproxy traffic interceptor |
+| `patch_claude_desktop.py` | Electron app patcher (limited use) |
+
+---
 
 ## Troubleshooting
 
@@ -269,12 +220,7 @@ Make sure you have access to Claude models in Bedrock:
 You're hitting rate limits. Options:
 - Wait and retry
 - Request a quota increase in AWS
-- Use inference profiles for cross-region routing (already configured for Sonnet 4.5)
-
-### "ValidationException"
-The request format might not match what Bedrock expects. Check:
-- Message format (role should be "user" or "assistant")
-- Content format (string or array of content blocks)
+- Use inference profiles for cross-region routing
 
 ### Credentials not working
 ```bash
@@ -285,16 +231,7 @@ aws sts get-caller-identity
 aws bedrock list-foundation-models --query "modelSummaries[?contains(modelId, 'claude')]"
 ```
 
-## Architecture
-
-The proxy uses:
-- **FastAPI** for the HTTP server
-- **boto3** for AWS Bedrock communication
-- **Bedrock Converse API** for model inference (supports streaming)
-
-It handles translation between:
-- Anthropic's `messages` endpoint format
-- Bedrock's `converse` and `converse_stream` APIs
+---
 
 ## License
 
