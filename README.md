@@ -1,148 +1,220 @@
-# Bedrock Anthropic Proxy
+# Claude on Bedrock
 
-Use **AWS Bedrock** with any Anthropic-compatible client, or run the included **Claude Desktop replacement** with local chat storage!
+A **Claude Desktop replacement** that runs entirely on your AWS account. Chat with Claude Opus, Sonnet, or Haiku through AWS Bedrock with all conversations stored locally.
 
-## What We Discovered
+## Why This Exists
 
-After extracting and analyzing the official Claude Desktop app, we found:
+After reverse-engineering Claude Desktop, we found it's just a WebView wrapper that loads `claude.ai`. Your chats are stored on Anthropic's servers, and there's no way to redirect API calls to Bedrock.
 
-- **Claude Desktop is a WebView wrapper** - it loads `claude.ai` in a browser view
-- **API calls come from the web app**, not the Electron app itself
-- **Chats are stored on Anthropic's servers**, synced to your account
-- **System prompts are injected server-side**
+So we built a complete replacement:
+- **Local storage** - All chats in SQLite on your machine
+- **Your AWS account** - Use Bedrock, pay AWS prices
+- **Official system prompt** - Same Claude behavior as the real app
+- **No Anthropic account needed**
 
-This means patching the Electron app won't redirect API calls. Instead, we built a **complete local replacement**.
+---
 
-## Architecture
+## Installation
 
+### Prerequisites
+
+- **Python 3.10+**
+- **AWS Account** with Bedrock access
+- **AWS CLI** configured (optional but recommended)
+
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/your-org/claude-desktop-connect.git
+cd claude-desktop-connect
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Your Options                                  │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  Option A: Full Replacement (Recommended)                           │
-│  ┌──────────────────┐     ┌─────────────────┐                       │
-│  │  Streamlit Chat  │────▶│   AWS Bedrock   │                       │
-│  │  (local storage) │     │  (Claude Opus)  │                       │
-│  └──────────────────┘     └─────────────────┘                       │
-│  - Local SQLite database for all chats                              │
-│  - Official Claude system prompt included                           │
-│  - No Anthropic account needed                                      │
-│                                                                      │
-│  Option B: API Proxy                                                │
-│  ┌──────────────────┐     ┌─────────────────┐     ┌──────────────┐ │
-│  │  Any Anthropic   │────▶│  Bedrock Proxy  │────▶│  AWS Bedrock │ │
-│  │  Client (SDK)    │     │  (localhost)    │     │              │ │
-│  └──────────────────┘     └─────────────────┘     └──────────────┘ │
-│  - Claude Code, Python SDK, curl, etc.                              │
-│  - Drop-in replacement for api.anthropic.com                        │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+
+### Step 2: Create Virtual Environment (Recommended)
+
+```bash
+# Create venv
+python -m venv venv
+
+# Activate it
+source venv/bin/activate      # Linux/macOS
+# or
+venv\Scripts\activate         # Windows
+```
+
+### Step 3: Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Step 4: Enable Claude Models in AWS Bedrock
+
+Before you can use Claude, you need to enable the models in your AWS account:
+
+1. Go to [AWS Bedrock Console](https://console.aws.amazon.com/bedrock)
+2. Click **Model access** in the left sidebar
+3. Click **Manage model access**
+4. Check the boxes for Claude models you want:
+   - Anthropic Claude Opus 4
+   - Anthropic Claude Sonnet 4.5
+   - Anthropic Claude Haiku 4.5
+5. Click **Save changes**
+6. Wait for status to show "Access granted" (usually instant)
+
+### Step 5: Configure AWS Credentials
+
+Choose one of these methods:
+
+**Option A: AWS SSO (Recommended)**
+```bash
+# Configure SSO
+aws configure sso
+
+# Login
+aws sso login --profile your-profile
+
+# Set environment
+export AWS_PROFILE=your-profile
+export AWS_REGION=us-east-1
+```
+
+**Option B: Environment Variables**
+```bash
+export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+export AWS_REGION=us-east-1
+```
+
+**Option C: AWS Credentials File**
+```bash
+# ~/.aws/credentials
+[default]
+aws_access_key_id = AKIA...
+aws_secret_access_key = your-secret-key
+
+# Then just set region
+export AWS_REGION=us-east-1
+```
+
+### Step 6: Verify AWS Setup
+
+```bash
+# Check your identity
+aws sts get-caller-identity
+
+# Check Bedrock access
+aws bedrock list-foundation-models --query "modelSummaries[?contains(modelId, 'claude')].modelId"
 ```
 
 ---
 
-## Option A: Claude Desktop Replacement (Recommended)
+## Usage
 
-A full-featured chat interface that replicates Claude Desktop functionality with local storage.
-
-### Features
-
-- **Local SQLite storage** - All conversations stored in `~/.config/claude-bedrock/chats.db`
-- **Official Claude system prompt** - Authentic Claude behavior (from Anthropic's public docs)
-- **Conversation history** - Sidebar with all your chats
-- **Export/Import** - Backup and restore conversations as JSON
-- **Multiple models** - Switch between Opus, Sonnet, Haiku
-- **Streaming responses** - Real-time token streaming
-- **No Anthropic account** - Everything runs on your AWS account
-
-### Quick Start
+### Chat UI (Claude Desktop Replacement)
 
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Configure AWS credentials
-export AWS_PROFILE=your-profile  # or use environment variables
-export AWS_REGION=us-east-1
-
-# 3. Run the chat
 streamlit run bedrock_chat.py
 ```
 
-Open `http://localhost:8501` and start chatting!
+Open http://localhost:8501 in your browser.
 
-### Configuration
+**Features:**
+- Conversation sidebar with history
+- Model selection (Opus, Sonnet, Haiku)
+- Streaming responses
+- Export/import conversations
+- Temperature and max tokens controls
+- Official Claude system prompt
 
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `AWS_REGION` | `us-east-1` | AWS region for Bedrock |
-| `AWS_PROFILE` | (none) | AWS profile to use |
-| `USE_SYSTEM_PROMPT` | `true` | Inject official Claude system prompt |
+**Data Location:** `~/.config/claude-bedrock/chats.db`
 
-### Data Storage
+### API Proxy (For Other Tools)
 
-All data is stored locally:
-- **Database**: `~/.config/claude-bedrock/chats.db`
-- **Format**: SQLite with conversations and messages tables
+Run a local server that translates Anthropic API calls to Bedrock:
+
+```bash
+# Terminal 1: Start the proxy
+python bedrock_proxy.py
+
+# Terminal 2: Use any Anthropic client
+export ANTHROPIC_BASE_URL=http://localhost:8080
+export ANTHROPIC_API_KEY=dummy
+
+# Now use Claude Code, Python SDK, etc.
+claude  # Claude Code works!
+```
 
 ---
 
-## Option B: API Proxy
+## Quick Reference
 
-A drop-in replacement for `api.anthropic.com` that routes requests to Bedrock.
+### Available Models
 
-### Quick Start
+| Display Name | Model Key | Bedrock ID |
+|-------------|-----------|------------|
+| Claude Opus 4 | `opus` | `us.anthropic.claude-opus-4-20250514-v1:0` |
+| Claude Sonnet 4.5 | `sonnet` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
+| Claude Sonnet 4 | `sonnet` | `us.anthropic.claude-sonnet-4-20250514-v1:0` |
+| Claude Haiku 4.5 | `haiku` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| Claude 3.5 Sonnet | `sonnet` | `us.anthropic.claude-3-5-sonnet-20241022-v2:0` |
+| Claude 3.5 Haiku | `haiku` | `us.anthropic.claude-3-5-haiku-20241022-v1:0` |
 
-```bash
-# 1. Install dependencies
-pip install -r requirements.txt
+### Environment Variables
 
-# 2. Configure AWS credentials
-export AWS_PROFILE=your-profile
-export AWS_REGION=us-east-1
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AWS_REGION` | `us-east-1` | AWS region for Bedrock |
+| `AWS_PROFILE` | - | AWS profile name |
+| `USE_SYSTEM_PROMPT` | `true` | Include official Claude system prompt |
+| `PROXY_PORT` | `8080` | Port for the API proxy |
 
-# 3. Run the proxy
-python bedrock_proxy.py
+### Project Files
 
-# 4. Point your client at it
-export ANTHROPIC_BASE_URL=http://localhost:8080
-export ANTHROPIC_API_KEY=dummy  # Required by some clients but not used
-```
+| File | Description |
+|------|-------------|
+| `bedrock_chat.py` | Streamlit chat UI (main app) |
+| `chat_storage.py` | SQLite conversation storage |
+| `system_prompt.py` | Official Claude system prompts |
+| `bedrock_proxy.py` | Anthropic API → Bedrock proxy |
+| `requirements.txt` | Python dependencies |
 
-### Usage Examples
+---
 
-#### With the Anthropic Python SDK
+## Examples
+
+### Python SDK with Proxy
 
 ```python
 from anthropic import Anthropic
 
 client = Anthropic(
     base_url="http://localhost:8080",
-    api_key="dummy"  # Not used, but required
+    api_key="dummy"
 )
 
 response = client.messages.create(
-    model="opus",  # Maps to Claude Opus 4 on Bedrock
+    model="opus",
     max_tokens=1024,
     messages=[{"role": "user", "content": "Hello!"}]
 )
 print(response.content[0].text)
 ```
 
-#### With Claude Code
+### Direct Bedrock (No Proxy)
 
-```bash
-# Terminal 1: Run the Bedrock proxy
-python bedrock_proxy.py
+```python
+import boto3
 
-# Terminal 2: Configure Claude Code
-export ANTHROPIC_BASE_URL=http://localhost:8080
-export ANTHROPIC_API_KEY=dummy
-claude
+client = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+response = client.converse(
+    modelId="us.anthropic.claude-opus-4-20250514-v1:0",
+    messages=[{"role": "user", "content": [{"text": "Hello!"}]}]
+)
+print(response["output"]["message"]["content"][0]["text"])
 ```
 
-#### With curl
+### curl
 
 ```bash
 curl -X POST http://localhost:8080/v1/messages \
@@ -154,81 +226,86 @@ curl -X POST http://localhost:8080/v1/messages \
   }'
 ```
 
-### Model Mapping
-
-The proxy automatically maps friendly model names to Bedrock inference profile IDs:
-
-| Model Name | Bedrock ID |
-|------------|------------|
-| `opus` | `us.anthropic.claude-opus-4-20250514-v1:0` |
-| `sonnet` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
-| `haiku` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
-| `claude-opus-4-20250514` | `us.anthropic.claude-opus-4-20250514-v1:0` |
-| `claude-sonnet-4-5-20250929` | `global.anthropic.claude-sonnet-4-5-20250929-v1:0` |
-
-### Proxy Features
-
-- Full Anthropic Messages API compatibility
-- Streaming responses (SSE)
-- Tool/function calling support
-- Image/multimodal support
-- Automatic model mapping
-- AWS credential chain support (env vars, profiles, SSO, IAM roles)
-- Health check endpoint
-
----
-
-## Alternative Approaches (For Reference)
-
-### Traffic Interception with mitmproxy
-
-You can intercept Claude Desktop's HTTPS traffic, but since it loads a web app, this would intercept traffic to `claude.ai` rather than direct API calls.
-
-```bash
-# Install mitmproxy CA cert first
-python intercept_claude.py
-```
-
-### Electron App Patching
-
-The `patch_claude_desktop.py` script can modify the Electron app, but this won't redirect API calls since Claude Desktop is a WebView to `claude.ai`.
-
----
-
-## Project Files
-
-| File | Description |
-|------|-------------|
-| `bedrock_chat.py` | Full Claude Desktop replacement with local storage |
-| `chat_storage.py` | SQLite storage for conversations |
-| `system_prompt.py` | Official Claude system prompts |
-| `bedrock_proxy.py` | API proxy (Anthropic → Bedrock) |
-| `intercept_claude.py` | mitmproxy traffic interceptor |
-| `patch_claude_desktop.py` | Electron app patcher (limited use) |
-
 ---
 
 ## Troubleshooting
 
 ### "AccessDeniedException"
-Make sure you have access to Claude models in Bedrock:
+
+You haven't enabled Claude models in Bedrock:
 1. Go to AWS Console → Bedrock → Model access
-2. Request access to Anthropic Claude models
-3. Wait for approval (usually instant)
+2. Enable the Claude models you want to use
+3. Wait for "Access granted" status
+
+### "ExpiredTokenException"
+
+Your AWS credentials have expired:
+```bash
+# For SSO
+aws sso login --profile your-profile
+
+# Then re-export
+export AWS_PROFILE=your-profile
+```
 
 ### "ThrottlingException"
-You're hitting rate limits. Options:
-- Wait and retry
-- Request a quota increase in AWS
-- Use inference profiles for cross-region routing
 
-### Credentials not working
+You're hitting rate limits:
+- Wait a moment and retry
+- Request quota increase in AWS Service Quotas
+- Use a different region
+
+### Chat UI won't start
+
 ```bash
-# Verify your credentials
-aws sts get-caller-identity
+# Make sure you're in the right directory
+cd claude-desktop-connect
 
-# Check Bedrock access
-aws bedrock list-foundation-models --query "modelSummaries[?contains(modelId, 'claude')]"
+# Make sure venv is activated
+source venv/bin/activate
+
+# Check streamlit is installed
+pip install streamlit
+
+# Try again
+streamlit run bedrock_chat.py
+```
+
+### Can't find the database
+
+Conversations are stored at:
+- **Linux/macOS:** `~/.config/claude-bedrock/chats.db`
+- **Windows:** `C:\Users\<you>\.config\claude-bedrock\chats.db`
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Claude on Bedrock                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │  Streamlit   │    │   SQLite     │    │   System     │  │
+│  │  Chat UI     │───▶│   Storage    │    │   Prompt     │  │
+│  │              │    │              │    │              │  │
+│  └──────┬───────┘    └──────────────┘    └──────────────┘  │
+│         │                                                    │
+│         ▼                                                    │
+│  ┌──────────────┐                                           │
+│  │   Bedrock    │──────────────────────────────────────┐    │
+│  │   Client     │                                      │    │
+│  └──────────────┘                                      │    │
+│                                                        ▼    │
+└────────────────────────────────────────────────────────┼────┘
+                                                         │
+                         ┌───────────────────────────────┘
+                         ▼
+              ┌─────────────────────┐
+              │    AWS Bedrock      │
+              │  (Claude Models)    │
+              └─────────────────────┘
 ```
 
 ---
@@ -236,3 +313,14 @@ aws bedrock list-foundation-models --query "modelSummaries[?contains(modelId, 'c
 ## License
 
 MIT - Do whatever you want with it!
+
+---
+
+## Contributing
+
+PRs welcome! Some ideas:
+- Dark mode for chat UI
+- Keyboard shortcuts
+- Image/file upload support
+- Conversation search
+- Multiple chat windows
