@@ -14,7 +14,7 @@ interface ElectronAPI {
   updateMessage: (id: string, content: string) => Promise<boolean>
 
   // Chat
-  sendChat: (conversationId: string, messages: ChatMessage[], model: string) => Promise<string>
+  sendChat: (conversationId: string, messages: ChatMessage[], model: string, workingDir?: string) => Promise<string>
 
   // Settings
   getSetting: (key: string) => Promise<string | null>
@@ -29,6 +29,7 @@ interface ElectronAPI {
   onStreamToken: (callback: (data: { conversationId: string; token: string }) => void) => () => void
   onStreamDone: (callback: (data: { conversationId: string }) => void) => () => void
   onStreamError: (callback: (data: { conversationId: string; error: string }) => void) => () => void
+  onToolUse: (callback: (data: { conversationId: string; tool: string; status: string; input?: unknown; result?: string }) => void) => () => void
   onNewChat: (callback: () => void) => () => void
   onOpenSettings: (callback: () => void) => () => void
   onThemeChanged: (callback: (isDark: boolean) => void) => () => void
@@ -55,8 +56,8 @@ export const api: ElectronAPI = {
   updateMessage: (id, content) => window.electron.updateMessage(id, content),
 
   // Chat
-  sendChat: (conversationId, messages, model) =>
-    window.electron.sendChat(conversationId, messages, model),
+  sendChat: (conversationId, messages, model, workingDir) =>
+    window.electron.sendChat(conversationId, messages, model, workingDir),
 
   // Settings
   getSetting: (key) => window.electron.getSetting(key),
@@ -71,6 +72,7 @@ export const api: ElectronAPI = {
   onStreamToken: (callback) => window.electron.onStreamToken(callback),
   onStreamDone: (callback) => window.electron.onStreamDone(callback),
   onStreamError: (callback) => window.electron.onStreamError(callback),
+  onToolUse: (callback) => window.electron.onToolUse(callback),
   onNewChat: (callback) => window.electron.onNewChat(callback),
   onOpenSettings: (callback) => window.electron.onOpenSettings(callback),
   onThemeChanged: (callback) => window.electron.onThemeChanged(callback)

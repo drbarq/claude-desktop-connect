@@ -17,7 +17,8 @@ export interface ElectronAPI {
   sendChat: (
     conversationId: string,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    model: string
+    model: string,
+    workingDir?: string
   ) => Promise<string>
 
   // Settings
@@ -33,6 +34,7 @@ export interface ElectronAPI {
   onStreamToken: (callback: (data: { conversationId: string; token: string }) => void) => () => void
   onStreamDone: (callback: (data: { conversationId: string }) => void) => () => void
   onStreamError: (callback: (data: { conversationId: string; error: string }) => void) => () => void
+  onToolUse: (callback: (data: { conversationId: string; tool: string; status: string; input?: unknown; result?: string }) => void) => () => void
   onNewChat: (callback: () => void) => () => void
   onOpenSettings: (callback: () => void) => () => void
   onThemeChanged: (callback: (isDark: boolean) => void) => () => void
@@ -53,8 +55,8 @@ const electronAPI: ElectronAPI = {
   updateMessage: (id, content) => ipcRenderer.invoke('messages:update', id, content),
 
   // Chat
-  sendChat: (conversationId, messages, model) =>
-    ipcRenderer.invoke('chat:send', conversationId, messages, model),
+  sendChat: (conversationId, messages, model, workingDir) =>
+    ipcRenderer.invoke('chat:send', conversationId, messages, model, workingDir),
 
   // Settings
   getSetting: (key) => ipcRenderer.invoke('settings:get', key),
@@ -86,6 +88,15 @@ const electronAPI: ElectronAPI = {
     ) => callback(data)
     ipcRenderer.on('stream:error', handler)
     return () => ipcRenderer.removeListener('stream:error', handler)
+  },
+
+  onToolUse: (callback) => {
+    const handler = (
+      _event: IpcRendererEvent,
+      data: { conversationId: string; tool: string; status: string; input?: unknown; result?: string }
+    ) => callback(data)
+    ipcRenderer.on('stream:toolUse', handler)
+    return () => ipcRenderer.removeListener('stream:toolUse', handler)
   },
 
   onNewChat: (callback) => {

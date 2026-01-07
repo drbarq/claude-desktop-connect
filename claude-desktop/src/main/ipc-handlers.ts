@@ -55,12 +55,12 @@ export function registerIpcHandlers(): void {
   // Chat/streaming handler
   ipcMain.handle(
     'chat:send',
-    async (_, conversationId: string, messages: ChatMessage[], model: string) => {
+    async (_, conversationId: string, messages: ChatMessage[], model: string, workingDir?: string) => {
       const window = getMainWindow()
       if (!window) throw new Error('No main window')
 
       // Create user message in DB is handled by renderer before calling this
-      const response = await streamChat(window, conversationId, messages, model)
+      const response = await streamChat(window, conversationId, messages, model, workingDir)
       return response
     }
   )
